@@ -54,3 +54,9 @@ externalPort = 8081
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+MEILISEARCH_HOST = "http://127.0.0.1:7700"
+MEILISEARCH_INDEX = "documents"
