@@ -704,10 +704,13 @@ app.use(express.json({
 
 let store;
 if(process.env.USE_REDIS === 'true') {
+    const redisPort = parseInt(process.env.REDIS_PORT) || 6379;
+    const redisTls = process.env.REDIS_TLS === 'true' || redisPort === 6380;
     const client = redis.createClient({
         socket: {
             host: process.env.REDIS_HOST,
-            port: process.env.REDIS_PORT
+            port: redisPort,
+            tls: redisTls
         },
         password: process.env.REDIS_PASSWORD
     });
