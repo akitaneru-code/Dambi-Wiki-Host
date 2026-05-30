@@ -201,7 +201,7 @@ global.updateConfig = () => {
 const versionData = JSON.parse(fs.readFileSync('./version.json').toString());
 global.versionData = versionData;
 global.updateSkinInfo = () => {
-    if(!fs.existsSync('./frontend/.git')) {
+    if(!fs.existsSync('./frontend/.git') && !fs.existsSync('./frontend/package.json')) {
         console.log('Downloading frontend...');
         const result = execSync(`git clone ${new URL(versionData.feRepo, 'https://github.com')} frontend`);
         console.log(result.toString());
