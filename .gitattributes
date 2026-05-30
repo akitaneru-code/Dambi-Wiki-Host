@@ -3,3 +3,6 @@ mongodb-data/journal/WiredTigerPreplog.0000000001 filter=lfs diff=lfs merge=lfs 
 mongodb-data/journal/WiredTigerPreplog.0000000002 filter=lfs diff=lfs merge=lfs -text
 mongodb-data/journal/WiredTigerLog.0000000008 filter=lfs diff=lfs merge=lfs -text
 mongodb-data/journal/WiredTigerLog.0000000002 filter=lfs diff=lfs merge=lfs -text
+mongodb-data/journal/WiredTigerLog.0000000009 filter=lfs diff=lfs merge=lfs -text
+mongodb-data/journal/WiredTigerLog.0000000010 filter=lfs diff=lfs merge=lfs -text
+mongodb-data/journal/WiredTigerLog.0000000011 filter=lfs diff=lfs merge=lfs -text
