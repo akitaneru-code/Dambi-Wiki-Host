@@ -1,0 +1,72 @@
+services:
+  app:
+    image: ghcr.io/wjdgustn/thetree:master
+    restart: unless-stopped
+    extra_hosts:
+      - host.docker.internal:host-gateway
+#    labels:
+#      com.centurylinklabs.watchtower.enable: true
+    ports:
+      # 앞 3000을 원하는 포트로 수정
+      - '3000:3000'
+    volumes:
+      - ./skins:/usr/src/app/skins
+      - ./customStatic:/usr/src/app/customStatic
+      - ./plugins:/usr/src/app/plugins
+      - ./cache:/usr/src/app/cache
+      - ./frontend:/usr/src/app/frontend
+      - ./config:/usr/src/app/config
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      IP_HEADER: cf-connecting-ip
+      SESSION_SECRET: secret
+
+      S3_ENDPOINT:
+      S3_ACCESS_KEY_ID:
+      S3_SECRET_ACCESS_KEY:
+      S3_BUCKET_NAME: thetree
+      S3_REGION: auto
+      S3_FORCE_PATH_STYLE: false
+      S3_PUBLIC_HOST: https://cdn.example.com
+      S3_PUBLIC_HOST_PREFIX:
+
+      # compose-full 사용 시 아래 부분 건들 필요 없음
+      MONGODB_HOST: db
+      MONGODB_PORT: 27017
+      MONGODB_USER: root
+      MONGODB_PASSWORD: thetreepass
+      MONGODB_DATABASE: TheTree
+
+      USE_REDIS: true
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      MEILISEARCH_HOST: http://search:7700
+      MEILISEARCH_KEY: thetreepass
+      MEILISEARCH_INDEX: TheTreeDocuments
+  db:
+    image: mongo:latest
+    restart: unless-stopped
+    volumes:
+      - db:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: thetreepass
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    volumes:
+      - redis:/data
+  search:
+    image: getmeili/meilisearch:latest
+    restart: unless-stopped
+    volumes:
+      - search:/meili_data
+    environment:
+      MEILI_MASTER_KEY: thetreepass
+
+volumes:
+  db:
+  redis:
+  search:

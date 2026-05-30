@@ -1,0 +1,55 @@
+{
+  "sitenotice": "",
+  "default_skin": "liberty",
+  "embed_image": "",
+
+  "namespaces": [],
+  "hidden_namespaces": [],
+  "protected_namespaces": [],
+
+  "max_file_size": 10,
+  "document_maximum_length": 1000000,
+
+  "read_only": false,
+
+  "can_withdraw": true,
+  "withdraw_last_activity_hours": 24,
+  "withdraw_save_days": 0,
+
+  "grant_permissions": [],
+
+  "disable_signup": false,
+  "email_whitelist": [],
+  "use_email_verification": false,
+  "name_blacklist": ["admin", "developer"],
+
+  "verify_enabled": false,
+  "verify_countries_ip_match": true,
+  "verify_countries": [],
+  "verify_countries_whitelist": true,
+  "verify_change_cooldown_days": 1,
+
+  "auto_verified_member": {
+    "check_days": 7,
+    "delay_hours": 3,
+    "no_block_days": 7,
+    "edit_count": 80,
+    "comment_count": 50
+  },
+
+  "external_link_icons": {
+    "파일:홈페이지 아이콘.svg": ""
+  },
+
+  "edit_help_document": "",
+  "upload_help_document": "",
+  "file_default_license": "",
+  "file_top_license": ["제한적 이용"],
+
+  "aclgroup_order": [],
+
+  "content_security_policy": {
+    "frameSrc": [],
+    "connectSrc": []
+  }
+}

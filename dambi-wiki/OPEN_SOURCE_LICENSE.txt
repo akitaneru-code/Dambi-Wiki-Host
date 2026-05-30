@@ -1,0 +1,41 @@
+/**
+ * highlight.js
+ * (c) 2006, Ivan Sagalaev.
+ * @license BSD-3-Clause
+ */
+
+/**
+ * floating-ui
+ * (c) 2021 Floating UI contributors
+ * @license MIT
+ */
+
+ /**
+  * SimpleWebAuthn
+  * (c) 2020 Matthew Miller
+  * @license MIT
+  */
+
+/**
+ * Font Awesome Free
+ * (c) 2024 Fonticons, Inc.
+ * @license CC-BY 4.0
+ */
+
+/**
+ * KaTeX
+ * (c) 2024 2013-2020 Khan Academy and other contributors
+ * @license MIT
+ */
+
+/**
+ * lite-youtube
+ * (c) 2019 Justin Ribeiro
+ * @license MIT
+ */
+
+/**
+ * jsdifflib
+ * (c) 2007 - 2011 Chas Emerick
+ * @license BSD-2-Clause
+ */

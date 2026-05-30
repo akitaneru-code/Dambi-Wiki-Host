@@ -1,0 +1,60 @@
+<template>
+  <SeedForm flex box>
+    <label for="namespaceSelect">{{$t('components.backlink_namespace_selector.namespace')}}</label>
+    <SelectMenu id="namespaceSelect" name="namespace" :value="$route.query.namespace || namespaces[0]?.namespace">
+      <option v-for="ns in namespaces" :value="ns.namespace">{{ns.namespace}} ({{ns.count}})</option>
+    </SelectMenu>
+    <SelectMenu name="flag" :value="$route.query.flag || 0">
+      <option value="0">({{$t('components.backlink_namespace_selector.all')}})</option>
+      <option value="1">link</option>
+      <option value="2">file</option>
+      <option value="4">include</option>
+      <option value="8">redirect</option>
+    </SelectMenu>
+    <GeneralButton type="submit" theme="primary">{{$t('components.backlink_namespace_selector.submit')}}</GeneralButton>
+  </SeedForm>
+</template>
+<script>
+import SeedForm from '@/components/form/seedForm'
+import SelectMenu from '@/components/selectMenu'
+import GeneralButton from '@/components/generalButton'
+
+export default {
+  components: {
+    SeedForm,
+    SelectMenu,
+    GeneralButton
+  },
+  props: {
+    namespaces: {
+      type: Array,
+      required: true
+    }
+  }
+}
+</script>
+<style scoped>
+select {
+  min-width: 12rem;
+}
+
+@media screen and (max-width: 1023.98px) {
+  form {
+    width: 100%;
+  }
+}
+
+@media screen and (max-width: 727.98px) {
+  form {
+    flex-direction: column;
+  }
+
+  form>* {
+    width: 100%;
+  }
+
+  select {
+    min-width: 10rem;
+  }
+}
+</style>

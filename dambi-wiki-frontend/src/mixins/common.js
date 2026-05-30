@@ -1,0 +1,376 @@
+import { inflate } from 'pako';
+import { decode } from '@msgpack/msgpack';
+
+import { unescapeHtml } from '@/utils';
+
+export default {
+    methods: {
+        doc_fulltitle(document) {
+            const type = typeof document;
+
+            if(type === 'object') {
+                if(document.forceShowNamespace === false) return document.title;
+                return `${this.$t(`namespaces.${document.namespace}`, {
+                    defaultValue: document.namespace,
+                    lng: this.config.lang || 'ko'
+                })}:${document.title}`;
+            }
+            else return document;
+        },
+        user_doc(str, type = 1) {
+            return `${this.$t(`namespaces.${type ? '사용자' : '아이피사용자'}`, { lng: this.config.lang || 'ko' })}:${str}`;
+        },
+        contribution_link(uuid) {
+            return `/contribution/${uuid}/document`;
+        },
+        contribution_link_discuss(uuid) {
+            return `/contribution/${uuid}/discuss`;
+        },
+        contribution_link_edit_request(uuid) {
+            return `/contribution/${uuid}/edit_request`;
+        },
+        contribution_link_accepted_edit_request(uuid) {
+            return `/contribution/${uuid}/accepted_edit_request`
+        },
+        encodeSpecialChars(str, exclude = []) {
+            if(!str) return str;
+
+            const specialChars = '?&=+$#%\\'.split('');
+            return str.split('').map(a => specialChars.includes(a) && !exclude.includes(a) ? encodeURIComponent(a) : a).join('');
+        },
+        doc_action_link(document, route, query = {}) {
+            const specialUrls = [
+                '.',
+                '..',
+                '\\'
+            ];
+
+            const title = typeof document === 'string' ? document : this.doc_fulltitle(document);
+            let str;
+            if(specialUrls.includes(title) || route.startsWith('a/')) {
+                query.doc = encodeURIComponent(title);
+                str = `/${route}`;
+            }
+            else str = `/${route}/${this.encodeSpecialChars(title)}`;
+            if(Object.keys(query).length > 0) {
+                str += '?';
+                str += Object.keys(query).filter(k => query[k]).map(k => `${k}=${query[k]}`).join('&');
+            }
+            return str;
+        },
+        getTitleDescription(page) {
+            const text = {
+                edit_edit_request: this.$t('title_description.edit_request'),
+                edit_request: this.$t('title_description.edit_request'),
+                edit: this.$t('title_description.edit'),
+                history: this.$t('title_description.history'),
+                backlinks: this.$t('title_description.backlinks'),
+                move: this.$t('title_description.move'),
+                delete: this.$t('title_description.delete'),
+                acl: this.$t('title_description.acl'),
+                thread: this.$t('title_description.thread'),
+                thread_list: this.$t('title_description.thread_list'),
+                thread_list_close: this.$t('title_description.thread_list_close'),
+                edit_request_close: this.$t('title_description.edit_request_close'),
+                diff: this.$t('title_description.diff'),
+                revert: this.$t('title_description.revert', { rev: page.data.rev }),
+                raw: this.$t('title_description.raw', { rev: page.data.rev }),
+                blame: this.$t('title_description.blame', { rev: page.data.rev }),
+                wiki: page.data.rev ? this.$t('title_description.w', { rev: page.data.rev }) : '',
+            }[page.viewName];
+
+            let additionalText;
+            if(page.data.thread) additionalText = page.data.thread.topic;
+
+            return text ? ` (${text})` + (additionalText ? ` - ${additionalText}` : '') : '';
+        },
+        removeHtmlTags(text) {
+            return unescapeHtml(text.replaceAll(/<[^>]+>/g, ''));
+        },
+        durationToExactString(duration) {
+            const strs = [];
+
+            let weeks = 0;
+            const week = 1000 * 60 * 60 * 24 * 7;
+            while(duration >= week) {
+                duration -= week;
+                weeks++;
+            }
+            if(weeks) strs.push(`${weeks}${this.$t('duration.weeks', { count: weeks })}`);
+
+            let days = 0;
+            const day = 1000 * 60 * 60 * 24;
+            while(duration >= day) {
+                duration -= day;
+                days++;
+            }
+            if(days) strs.push(`${days}${this.$t('duration.days', { count: days })}`);
+
+            let hours = 0;
+            const hour = 1000 * 60 * 60;
+            while(duration >= hour) {
+                duration -= hour;
+                hours++;
+            }
+            if(hours) strs.push(`${hours}${this.$t('duration.hours', { count: hours })}`);
+
+            let minutes = 0;
+            const minute = 1000 * 60;
+            while(duration >= minute) {
+                duration -= minute;
+                minutes++;
+            }
+            if(minutes) strs.push(`${minutes}${this.$t('duration.minutes', { count: minutes })}`);
+
+            let seconds = 0;
+            const second = 1000;
+            while(duration >= second) {
+                duration -= second;
+                seconds++;
+            }
+            if(seconds) strs.push(`${seconds}${this.$t('duration.seconds', { count: seconds })}`);
+
+            return strs.join(' ');
+        },
+        async internalRequest(url, options) {
+            const noProgress = options?.noProgress ?? false
+            delete options?.noProgress
+
+            const mainView = this.$store.state.components.mainView
+            const progressBar = noProgress ? null : mainView.$refs.progressBar
+            progressBar?.start()
+
+            const userUrl = options?.userUrl
+            delete options?.userUrl
+
+            const encKey = __THETREE_URL_KEY__
+            const parsedUrl = new URL(url, location.origin)
+            const encryptedPath = (__THETREE_VERSION_HEADER__ + parsedUrl.pathname).split('')
+                .map((a, i) => a.charCodeAt(0) ^ encKey[i % encKey.length])
+            const shuffleArray = arr => {
+                for(let i in arr) {
+                    const j = encKey[i % encKey.length] % arr.length;
+                    [arr[i], arr[j]] = [arr[j], arr[i]]
+                }
+            }
+            shuffleArray(encryptedPath)
+            const urlChars = [
+                ...[
+                    ...[...Array(26)].map((a, i) => i + 97),
+                    ...[...Array(26)].map((a, i) => i + 65),
+                    ...[...Array(10)].map((a, i) => i + 48)
+                ]
+                    .map(a => String.fromCharCode(a)),
+                '-',
+                '_'
+            ]
+            shuffleArray(urlChars)
+
+            const binary = encryptedPath.map(a => a.toString(2).padStart(8, '0')).join('')
+            let finalPath = ''
+            for(let i = 0; i < binary.length; i += 6) {
+                const chunk = binary.slice(i, i + 6)
+                finalPath += urlChars[parseInt(chunk.padEnd(6, '0'), 2)]
+            }
+
+            const res = await fetch(import.meta.env.DEV ? ('/internal' + parsedUrl.pathname + parsedUrl.search) : ('/i/' + finalPath + parsedUrl.search), {
+                ...options,
+                headers: {
+                    ...(options?.headers || {}),
+                    'X-Chika': import.meta.env.DEV ? 'bypass' : __THETREE_VERSION_HEADER__,
+                    'X-Riko': this.$store.state.sessionHash,
+                    'X-You': this.$store.state.configHash
+                }
+            })
+
+            if(res.status !== 200) {
+                if(!this.$store.state.page.contentHtml && !this.$store.state.page.contentName) {
+                    this.$store.state.page.title = this.$t('titles.error')
+                    this.$store.state.page.contentHtml = `${this.$t('errors.api_request_failed')}: ${res.status}`
+                    await this.$store.state.updateView()
+                }
+                else {
+                    if(userUrl) location.href = userUrl
+                    else if(!import.meta.env.DEV && url !== '/sidebar') location.reload()
+                }
+                progressBar?.finish()
+                return
+            }
+
+            const buffer = await res.arrayBuffer()
+            let json = decode(inflate(buffer))
+            json = this.afterInternalRequest(json, progressBar, (options?.method || 'GET').toUpperCase())
+
+            return this.withoutKeys(json, [
+                'config',
+                'configHash',
+                'session',
+                'sessionHash',
+                'partialData',
+                'url'
+            ])
+        },
+        afterInternalRequest(json, progressBar, method = 'GET') {
+            if(import.meta.env.DEV && !import.meta.env.SSR) console.log(json)
+
+            if(json.config) {
+                this.$store.state.$patch(state => {
+                    state.config = json.config
+                    state.configHash = json.configHash
+                })
+            }
+            if(json.session) {
+                this.$store.state.$patch(state => {
+                    state.session = json.session
+                    state.sessionHash = json.sessionHash
+                })
+            }
+            if(json.partialData)
+                this.$store.state.patchPartialPageData(json.partialData)
+
+            const strCode = json.code?.toString() || ''
+            if(strCode.startsWith('3')) {
+                if(!json.url.startsWith('/')) {
+                    location.href = json.url
+                    return
+                }
+                if(method === 'GET' || json.url === this.$route.fullPath)
+                    this.$store.state.components.mainView.nextUrl = json.url
+                else
+                    this.$router.push(json.url)
+                return
+            }
+
+            if(!json.page?.contentName) progressBar?.finish()
+
+            return json
+        },
+        async processInternalResponse(json, form) {
+            if(!json) {
+                this.$store.state.components.mainView.processNextUrl()
+                return
+            }
+            const statePatches = this.$store.state.parseResponse(json)
+
+            if(json.page) {
+                await this.$store.state.updateView(statePatches)
+            }
+
+            if(json.data) {
+                this.$store.state.clearFormErrors()
+
+                const strCode = json.code?.toString() || ''
+                if(strCode[0] === '4' || strCode[0] === '5') {
+                    if(typeof json.data === 'string') {
+                        this.$store.state.viewData.errorAlert = json.data
+
+                        if(json.code?.toString().startsWith('4')) {
+                            const firstInput = form?.querySelector('input, select, textarea')
+                            if(firstInput) this.$nextTick().then(() => firstInput.focus())
+                        }
+
+                        this.$store.state.viewData.errorAlertExists = false
+                        await this.$nextTick()
+                        const alertExists = this.$store.state.viewData.errorAlertExists
+                        if(!alertExists)
+                            alert(json.data)
+                    }
+                    else {
+                        const fieldErrors = json.data.fieldErrors
+                        this.$store.state.viewData.fieldErrors = fieldErrors
+                        if(fieldErrors) {
+                            const firstInputName = Object.keys(json.data.fieldErrors)[0]
+                            const firstInput = form?.querySelector(`[name="${firstInputName}"]`)
+                            await this.$nextTick()
+                            firstInput?.focus()
+                        }
+                    }
+                }
+            }
+
+            if(json.action) switch(json.action) {
+                case 'reloadView':
+                    await this.$store.state.components.mainView.loadView()
+                    break
+            }
+        },
+        async internalRequestAndProcess(url, options) {
+            const res = await this.internalRequest(url, options)
+            await this.processInternalResponse(res)
+            return res
+        },
+        onDynamicContentClick(e) {
+            if(e.metaKey || e.ctrlKey || e.shiftKey || e.defaultPrevented) return
+
+            const container = this.$refs.div
+            let link = null
+            for(let el = e.target; el && el !== container; el = el.parentNode) {
+                if(el.tagName === 'BUTTON') return
+                if(el.tagName === 'A') {
+                    link = el
+                    break
+                }
+            }
+            if(!link || link.getAttribute('target')) return
+
+            const href = link.getAttribute('href')
+            if(href
+                && !(href.startsWith('//') || href.startsWith("http://") || href.startsWith("https://"))) {
+                e.preventDefault()
+
+                let path = href
+                if(href.startsWith('#')) {
+                    const fullPath = this.$route.fullPath
+                    const hashIndex = fullPath.lastIndexOf('#')
+                    const basePath = hashIndex === -1
+                        ? fullPath
+                        : fullPath.slice(0, hashIndex)
+                    path = basePath + href
+                }
+
+                this.$router.push(path)
+            }
+        },
+        camelToSnakeCase(str) {
+            return str.replace(/(.)([A-Z][a-z]+)/, '$1_$2').replace(/([a-z0-9])([A-Z])/, '$1_$2').toLowerCase();
+        },
+        snakeToCamelCase(str) {
+            return str.toLowerCase().replace(/(?:^|_)(\w)/g, (_, c) => c.toUpperCase());
+        },
+        async waitUntil(promise, timeout = -1) {
+            let resolved = false;
+
+            return new Promise((resolve, reject) => {
+                let timeoutId;
+                if(timeout >= 0) {
+                    timeoutId = setTimeout(() => {
+                        resolve('timeout');
+                        resolved = true;
+                    }, timeout);
+                }
+
+                promise.then(result => {
+                    if(resolved) return;
+
+                    if(timeoutId) clearTimeout(timeoutId);
+                    resolve(result);
+                }).catch(error => {
+                    if(resolved) return;
+
+                    if(timeoutId) clearTimeout(timeoutId);
+                    reject(error);
+                });
+            });
+        },
+        async openQuickACLGroup(data) {
+            const QuickACLGroupModal = (await import('@/components/quickACLGroupModal')).default
+            await this.$vfm.show({ component: QuickACLGroupModal }, data)
+        },
+        withoutKeys(obj, keys = []) {
+            if(!obj) return obj;
+            if(Array.isArray(obj)) return obj.map(a => this.withoutKeys(a, keys));
+            obj = JSON.parse(JSON.stringify(obj));
+            return Object.fromEntries(Object.entries(obj).filter(([k]) => !keys.includes(k)));
+        }
+    }
+}

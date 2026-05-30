@@ -1,0 +1,61 @@
+<template>
+  <SeedForm method="post">
+    <SeedFormBlock :label="$t('views.signup_final.email')" inputId="emailInput" name="email">
+      <SeedFormInput id="emailInput" name="email" readonly :value="data.email"/>
+    </SeedFormBlock>
+    <SeedFormBlock :label="$t('views.signup_final.username')" inputId="usernameInput" name="username">
+      <template v-if="data.name">
+        <SeedFormInput id="usernameInput" :value="data.name" readonly/>
+        <input type="hidden" name="username" value="special:bypass">
+      </template>
+      <SeedFormInput v-else id="usernameInput" name="username"/>
+    </SeedFormBlock>
+    <input v-if="data.fromOAuth2" type="hidden" name="from_oauth2" value="Y">
+    <template v-else>
+      <SeedFormBlock :label="$t('views.signup_final.password')" inputId="passwordInput" name="password">
+        <SeedFormInput id="passwordInput" name="password" type="password"/>
+      </SeedFormBlock>
+      <SeedFormBlock :label="$t('views.signup_final.password_confirm')" inputId="passwordConfirmInput" name="password_confirm">
+        <SeedFormInput id="passwordConfirmInput" name="password_confirm" type="password"/>
+      </SeedFormBlock>
+    </template>
+    <SeedButton submit>{{$t('views.signup_final.submit')}}</SeedButton>
+  </SeedForm>
+</template>
+<script>
+import SeedForm from '@/components/form/seedForm'
+import SeedButton from '@/components/seedButton'
+import SeedFormBlock from '@/components/form/seedFormBlock'
+import SeedFormInput from '@/components/form/seedFormInput'
+
+export default {
+  components: {
+    SeedForm,
+    SeedButton,
+    SeedFormBlock,
+    SeedFormInput
+  }
+}
+</script>
+<style scoped>
+form {
+  width: 100%;
+}
+
+@media screen and (min-width: 34rem) {
+  form {
+    margin: 0 auto;
+    width: 28rem;
+  }
+}
+
+input {
+  width: calc(100% - .7rem);
+}
+
+form button {
+  float: right;
+  margin-top: 2rem;
+  width: 5rem;
+}
+</style>
