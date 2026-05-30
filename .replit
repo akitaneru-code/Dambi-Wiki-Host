@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-20", "web"]
 
 [deployment]
 router = "application"
@@ -33,7 +33,7 @@ args = "bash dambi-wiki/start.sh"
 waitForPort = 3000
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [postMerge]
