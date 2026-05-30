@@ -22,7 +22,8 @@ const axios = require('axios');
 const util = require('util');
 const msgpack = require('@msgpack/msgpack');
 const JSON5 = require('json5');
-const { lookup: ipLookup } = require('ip-location-api');
+let ipLookup = () => null;
+try { ipLookup = require('ip-location-api').lookup; } catch(e) { console.warn('ip-location-api unavailable, country detection disabled'); }
 const mongoose = require('mongoose');
 const zlib = require('zlib');
 const deflate = promisify(zlib.deflate);
