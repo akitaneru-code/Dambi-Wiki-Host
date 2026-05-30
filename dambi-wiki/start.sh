@@ -37,4 +37,12 @@ fi
 
 echo "Starting 담비위키..."
 cd /home/runner/workspace/dambi-wiki
+
+# Unset cloud MongoDB secrets so local settings take effect
+unset MONGODB_URL
+unset MONGODB_HOST
+unset MONGODB_PORT
+unset MONGODB_USER
+unset MONGODB_PASSWORD
+
 exec node --no-node-snapshot main.js
