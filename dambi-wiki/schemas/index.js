@@ -6,9 +6,14 @@ module.exports = () => {
         try {
             let mongoUrl = process.env.MONGODB_URL || `mongodb://${encodeURIComponent(process.env.MONGODB_USER)}:${encodeURIComponent(process.env.MONGODB_PASSWORD)}@${process.env.MONGODB_HOST}:${process.env.MONGODB_PORT}/admin`;
             if(process.env.MONGODB_URL) {
+                mongoUrl = mongoUrl.replace(/<([^>]+)>/, '$1');
                 mongoUrl = mongoUrl.replace(
                     /^(mongodb(?:\+srv)?:\/\/)([^:]+):([^@]+)@/,
-                    (_, scheme, user, pass) => `${scheme}${encodeURIComponent(decodeURIComponent(user))}:${encodeURIComponent(decodeURIComponent(pass))}@`
+                    (_, scheme, user, pass) => {
+                        try { pass = decodeURIComponent(pass); } catch(e) {}
+                        try { user = decodeURIComponent(user); } catch(e) {}
+                        return `${scheme}${encodeURIComponent(user)}:${encodeURIComponent(pass)}@`;
+                    }
                 );
             }
             await mongoose.connect(mongoUrl, {

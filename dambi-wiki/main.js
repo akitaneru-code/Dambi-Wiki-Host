@@ -247,11 +247,17 @@ global.versionInfo = {
     updateRequired: false
 };
 global.updateFEVersionInfo = () => {
+    let feBranch = 'main', feCommitId = '0000000', feCommitDate = new Date();
+    try {
+        feBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: './frontend' }).toString().trim();
+        feCommitId = execSync('git rev-parse HEAD', { cwd: './frontend' }).toString().trim();
+        feCommitDate = new Date(Number(execSync('git log -1 --format="%at"', { cwd: './frontend' }).toString().trim()) * 1000);
+    } catch(e) {}
     global.versionInfo = {
         ...global.versionInfo,
-        feBranch: execSync('git rev-parse --abbrev-ref HEAD', { cwd: './frontend' }).toString().trim(),
-        feCommitId: execSync('git rev-parse HEAD', { cwd: './frontend' }).toString().trim(),
-        feCommitDate: new Date(Number(execSync('git log -1 --format="%at"', { cwd: './frontend' }).toString().trim()) * 1000)
+        feBranch,
+        feCommitId,
+        feCommitDate
     }
 }
 updateFEVersionInfo();
