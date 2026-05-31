@@ -1140,11 +1140,126 @@ app.use(async (req, res, next) => {
                     const deflated = await deflate(Buffer.from(msgpack.encode(JSON.parse(JSON.stringify(rendered.state)))));
                     body += `<script nonce="${res.locals.cspNonce}">window.INITIAL_STATE='${deflated.toString('base64')}'</script>`;
                 }
-                const html = skinInfo.template
+
+                // 문서 댓글 위젯 — html 빌드 후 </body> 바로 앞에 주입 (Vue #app 밖)
+                let _commentScript = '';
+                if(viewName === 'wiki' && data.document && !data.error) {
+                    const docFullTitle = JSON.stringify(globalUtils.doc_fulltitle(data.document));
+                    const isLoggedIn = JSON.stringify(!!req.user);
+                    const commentApiPath = JSON.stringify('/comment/' + encodeURIComponent(globalUtils.doc_fulltitle(data.document)));
+                    _commentScript = `<script nonce="${res.locals.cspNonce}">(function(){
+var _loggedIn=${isLoggedIn},_api=${commentApiPath};
+var _page=1,_totalPages=1;
+function _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function _fmt(d){var dt=new Date(d);return dt.toLocaleDateString('ko-KR')+' '+dt.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});}
+function _user(u){return u&&(u.name||u.ip)||'(알 수 없음)';}
+function _buildSection(){
+  var sec=document.createElement('div');
+  sec.id='ddc-wrap';
+  sec.style.cssText='margin-top:2rem;padding:1.5rem;border-top:2px solid #e5e7eb;';
+  sec.innerHTML='<h3 style="margin:0 0 1rem;font-size:1.1rem;font-weight:700;">댓글 <span id="ddc-count" style="font-size:.9rem;color:#6b7280;font-weight:400;"></span></h3>'
+    +'<div id="ddc-list"></div>'
+    +'<div id="ddc-pages" style="display:flex;justify-content:center;gap:.3rem;margin-top:.8rem;"></div>'
+    +(_loggedIn
+      ?'<form id="ddc-form" style="margin-top:1rem;display:flex;flex-direction:column;gap:.6rem;">'
+        +'<textarea id="ddc-text" rows="3" maxlength="2000" placeholder="댓글을 입력하세요 (최대 2000자)" style="width:100%;padding:.6rem .8rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>'
+        +'<div style="display:flex;justify-content:flex-end;">'
+        +'<button type="submit" style="padding:.45rem 1.2rem;background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:.875rem;cursor:pointer;">등록</button>'
+        +'</div></form>'
+      :'<p style="margin-top:.8rem;font-size:.875rem;color:#6b7280;"><a href="/member/login" style="color:#3b82f6;">로그인</a> 후 댓글을 작성할 수 있습니다.</p>');
+  return sec;
+}
+function _renderList(comments){
+  var el=document.getElementById('ddc-list');
+  if(!el)return;
+  if(!comments.length){el.innerHTML='<p style="color:#9ca3af;font-size:.875rem;padding:.4rem 0;">아직 댓글이 없습니다.</p>';return;}
+  el.innerHTML=comments.map(function(c){
+    return '<div style="border-bottom:1px solid #f3f4f6;padding:.75rem 0;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">'
+      +'<span style="font-weight:600;font-size:.875rem;">'+_esc(_user(c.user))+'</span>'
+      +'<div style="display:flex;align-items:center;gap:.8rem;">'
+      +'<span style="color:#9ca3af;font-size:.775rem;">'+_fmt(c.createdAt)+'</span>'
+      +(c.canDelete?'<button data-del="'+_esc(c.uuid)+'" style="background:none;border:none;color:#ef4444;font-size:.775rem;cursor:pointer;padding:0;">삭제</button>':'')
+      +'</div></div>'
+      +'<p style="margin:0;font-size:.9rem;white-space:pre-wrap;">'+_esc(c.content)+'</p>'
+      +'</div>';
+  }).join('');
+}
+function _renderPages(page,totalPages){
+  var el=document.getElementById('ddc-pages');if(!el)return;
+  if(totalPages<=1){el.innerHTML='';return;}
+  var html='';
+  for(var i=Math.max(1,page-3);i<=Math.min(totalPages,page+3);i++){
+    var active=i===page;
+    html+='<button data-pg="'+i+'" style="padding:.3rem .65rem;border:1px solid '+(active?'#3b82f6':'#d1d5db')+';border-radius:4px;background:'+(active?'#3b82f6':'#fff')+';color:'+(active?'#fff':'inherit')+';font-size:.8rem;cursor:pointer;">'+i+'</button>';
+  }
+  el.innerHTML=html;
+}
+function _load(){
+  fetch(_api+'?page='+_page,{headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var cnt=document.getElementById('ddc-count');
+      if(cnt)cnt.textContent='('+d.total+')';
+      _totalPages=d.totalPages||1;
+      _renderList(d.comments||[]);
+      _renderPages(_page,_totalPages);
+    }).catch(function(){});
+}
+function _bindEvents(sec){
+  // 이벤트 위임: data-pg(페이지), data-del(삭제) 버튼 처리 — onclick 인라인 사용 안 함(CSP)
+  sec.addEventListener('click',function(e){
+    var pg=e.target.getAttribute('data-pg');
+    if(pg){_page=parseInt(pg,10);_load();return;}
+    var del=e.target.getAttribute('data-del');
+    if(del){
+      if(!confirm('댓글을 삭제하시겠습니까?'))return;
+      fetch('/comment/'+del,{method:'DELETE',headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(r){if(r.ok)_load();else alert('삭제에 실패했습니다.');});
+    }
+  });
+  if(_loggedIn){
+    var form=sec.querySelector('#ddc-form');
+    if(form)form.addEventListener('submit',function(e){
+      e.preventDefault();
+      var txt=sec.querySelector('#ddc-text');
+      var content=(txt&&txt.value||'').trim();
+      if(!content)return;
+      fetch(_api,{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({content:content})})
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if(d.error){alert(d.error);return;}
+          if(txt)txt.value='';
+          _page=_totalPages;
+          _load();
+        }).catch(function(){alert('댓글 등록에 실패했습니다.');});
+    });
+  }
+}
+function _init(tries){
+  if(tries<=0)return;
+  var target=document.querySelector('.wiki-article');
+  if(!target){setTimeout(function(){_init(tries-1);},150);return;}
+  var sec=_buildSection();
+  target.parentNode.insertBefore(sec,target.nextSibling);
+  _bindEvents(sec);
+  _load();
+}
+// window load: Vue 하이드레이션 완료 후 실행
+window.addEventListener('load',function(){
+  if(!document.getElementById('ddc-wrap'))_init(30);
+});
+}());</script>`;
+                }
+
+                let html = skinInfo.template
                     .replaceAll('{cspNonce}', res.locals.cspNonce)
                     .replace('<html>', `<html${rendered.head.htmlAttrs}>`)
                     .replace('<!--app-head-->', rendered.head.headTags + '\n' + (config.head_html?.replaceAll('{cspNonce}', res.locals.cspNonce) || '') + rendered.links)
                     .replace('<!--app-body-->', body);
+
+                // 댓글 스크립트를 </body> 바로 앞에 삽입 (#app 밖)
+                if(_commentScript) html = html.replace('</body>', _commentScript + '</body>');
 
                 res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
                 res.status(status).send(html);
