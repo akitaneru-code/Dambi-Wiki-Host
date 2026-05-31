@@ -7,7 +7,6 @@ MEILI_DATA="/home/runner/workspace/meili-data"
 MEILI_LOG="/tmp/meilisearch.log"
 MEILI_PID="/tmp/meilisearch.pid"
 MEILI_BIN="/home/runner/workspace/dambi-wiki/bin/meilisearch"
-MEILI_MASTER_KEY="dambi-wiki-local-key-$(hostname | md5sum | cut -c1-16)"
 
 mkdir -p "$MONGO_DATA" "$MEILI_DATA"
 
@@ -40,8 +39,8 @@ check(30);
 "
 fi
 
-# Start MeiliSearch if binary exists
-if [ -f "$MEILI_BIN" ]; then
+# Start MeiliSearch using MEILISEARCH_KEY secret as master key
+if [ -f "$MEILI_BIN" ] && [ -n "$MEILISEARCH_KEY" ]; then
   if [ -f "$MEILI_PID" ] && kill -0 $(cat "$MEILI_PID") 2>/dev/null; then
     echo "MeiliSearch already running (PID $(cat $MEILI_PID))"
   else
@@ -49,7 +48,7 @@ if [ -f "$MEILI_BIN" ]; then
     nohup "$MEILI_BIN" \
       --db-path "$MEILI_DATA" \
       --http-addr "127.0.0.1:7700" \
-      --master-key "$MEILI_MASTER_KEY" \
+      --master-key "$MEILISEARCH_KEY" \
       --no-analytics \
       > "$MEILI_LOG" 2>&1 &
     echo $! > "$MEILI_PID"
@@ -68,12 +67,12 @@ const check = (tries) => {
 };
 check(20);
 "
-    export MEILISEARCH_HOST="http://127.0.0.1:7700"
-    export MEILISEARCH_KEY="$MEILI_MASTER_KEY"
-    export MEILISEARCH_INDEX="documents"
   fi
+  # Set host/index for the wiki (key is already in env from Replit secret)
+  export MEILISEARCH_HOST="http://127.0.0.1:7700"
+  export MEILISEARCH_INDEX="documents"
 else
-  echo "MeiliSearch binary not found, skipping..."
+  echo "MeiliSearch binary or MEILISEARCH_KEY not set, skipping search engine..."
 fi
 
 echo "Starting 담비위키..."

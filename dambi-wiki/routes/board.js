@@ -19,7 +19,6 @@ const REPLIES_PER_PAGE = 50;
 app.get('/board', async (req, res) => {
     const boards = await Board.find().sort({ order: 1, name: 1 });
     return res.renderSkin('게시판', {
-        contentName: 'board-list',
         contentHtml: await renderBoardList(boards, req)
     });
 });
@@ -55,7 +54,6 @@ app.get('/board/:slug', async (req, res) => {
     const totalPages = Math.ceil(total / POSTS_PER_PAGE);
 
     return res.renderSkin(`${board.name} - 게시판`, {
-        contentName: 'board-posts',
         contentHtml: renderPostList(board, postList, page, totalPages, req)
     });
 });
@@ -67,7 +65,6 @@ app.get('/board/:slug/write', async (req, res) => {
     if (!board) return res.error('존재하지 않는 게시판입니다.', 404);
 
     return res.renderSkin(`글쓰기 - ${board.name}`, {
-        contentName: 'board-write',
         contentHtml: renderWriteForm(board, req)
     });
 });
@@ -133,7 +130,6 @@ app.get('/board/:slug/:uuid', async (req, res) => {
     const totalPages = Math.ceil(totalReplies / REPLIES_PER_PAGE);
 
     return res.renderSkin(`${post.title} - ${board.name}`, {
-        contentName: 'board-view',
         contentHtml: renderPostView(board, post, postUser, replyList, page, totalPages, req)
     });
 });
@@ -215,7 +211,6 @@ app.post('/admin/board/create',
 app.get('/admin/board', middleware.permission('admin'), async (req, res) => {
     const boards = await Board.find().sort({ order: 1, name: 1 });
     return res.renderSkin('게시판 관리', {
-        contentName: 'admin-board',
         contentHtml: renderAdminBoard(boards)
     });
 });
