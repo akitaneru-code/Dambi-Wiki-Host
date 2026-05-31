@@ -30,8 +30,26 @@ const ACLGroupItem = require('../schemas/aclGroupItem');
 const Thread = require('../schemas/thread');
 const Star = require('../schemas/star');
 const AuditLog = require('../schemas/auditLog');
+const DocumentTranslation = require('../schemas/documentTranslation');
 
 const ACL = require('../class/acl');
+
+// 번역 언어코드 정규식: 2~5 소문자 알파벳 (예: en, ja, zh)
+const TRANS_LANG_RE = /^[a-z]{2,5}$/;
+const TRANS_LANG_NAMES = {
+    en: 'English', ja: '日本語', zh: '中文',
+    fr: 'Français', de: 'Deutsch', es: 'Español',
+    pt: 'Português', ru: 'Русский', ar: 'العربية',
+    it: 'Italiano', nl: 'Nederlands', pl: 'Polski',
+    tr: 'Türkçe', vi: 'Tiếng Việt', th: 'ภาษาไทย',
+    id: 'Bahasa Indonesia', ko: '한국어', uk: 'Українська',
+    sv: 'Svenska', da: 'Dansk', fi: 'Suomi', ms: 'Bahasa Melayu',
+    hi: 'हिन्दी', bn: 'বাংলা', tl: 'Filipino'
+};
+function transLangName(code) { return TRANS_LANG_NAMES[code] || code.toUpperCase(); }
+function transEsc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 const app = express.Router();
 
@@ -242,6 +260,74 @@ app.get('/w{/*document}', middleware.parseDocumentName, async (req, res) => {
     defaultData.edit_acl_message = edit_acl_message;
 
     if(!dbDocument || !rev || (rev.content == null && !req.query.uuid)) {
+        // ── 번역 조회: title의 마지막 세그먼트가 언어코드인 경우 ──────────────────
+        const titleParts = title.split('/');
+        if (!req.query.uuid && titleParts.length >= 2) {
+            const possibleLang = titleParts[titleParts.length - 1];
+            if (TRANS_LANG_RE.test(possibleLang)) {
+                const baseTitle = titleParts.slice(0, -1).join('/');
+                const baseDbDoc = await Document.findOne({ namespace, title: baseTitle });
+                if (baseDbDoc) {
+                    const baseDocument = { namespace, title: baseTitle };
+                    const trans = await DocumentTranslation.findOne({ document: baseDbDoc.uuid, lang: possibleLang });
+                    const baseFullTitle = globalUtils.doc_fulltitle(baseDocument);
+                    const langName = transLangName(possibleLang);
+                    const editTransUrl = `/translate-edit/${globalUtils.encodeSpecialChars(baseFullTitle)}/${possibleLang}`;
+                    const origUrl = globalUtils.doc_action_link(baseDocument, 'w');
+
+                    if (trans?.content) {
+                        const parseResult = parser(trans.content);
+                        const { html: transHtml, headings: transHeadings } = await toHtml(parseResult, {
+                            document: baseDocument,
+                            aclData: req.aclData,
+                            req,
+                            includeData: {}
+                        });
+                        const transDate = Math.floor(trans.updatedAt.getTime() / 1000);
+                        const transBanner = `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:1.25rem;padding:.65rem 1rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:.875rem;">`
+                            + `<span>이 문서는 <a href="${transEsc(origUrl)}" style="color:#3b82f6;">${transEsc(baseFullTitle)}</a>의 <strong>${transEsc(langName)}</strong> 번역입니다.</span>`
+                            + `<a href="${transEsc(editTransUrl)}" style="padding:.3rem .8rem;background:#3b82f6;color:#fff;border-radius:5px;text-decoration:none;font-size:.8rem;white-space:nowrap;">번역 편집</a>`
+                            + `</div>`;
+                        return res.renderSkin(undefined, {
+                            ...defaultData,
+                            document: baseDocument,
+                            viewName: 'wiki',
+                            contentName: 'wiki',
+                            headings: transHeadings || [],
+                            date: transDate,
+                            star_count: 0,
+                            starred: false,
+                            serverData: {
+                                categories: [],
+                                contentHtml: transBanner + transHtml,
+                                userboxData: {},
+                                categoriesData: {},
+                                isRedirect: false,
+                                embed: false,
+                                docScript: null,
+                                topDocument: null,
+                                bottomDocument: null
+                            }
+                        });
+                    }
+
+                    // 번역이 없는 경우: 생성 안내
+                    const noTransHtml = `<div style="text-align:center;padding:3rem 1rem;">`
+                        + `<div style="font-size:1.5rem;margin-bottom:.75rem;">🌐</div>`
+                        + `<h2 style="margin:0 0 .5rem;font-size:1.2rem;">${transEsc(baseFullTitle)} — ${transEsc(langName)} 번역 없음</h2>`
+                        + `<p style="color:#6b7280;margin:0 0 1.5rem;">아직 이 언어로 번역된 내용이 없습니다.</p>`
+                        + `<a href="${transEsc(editTransUrl)}" style="display:inline-block;padding:.55rem 1.5rem;background:#3b82f6;color:#fff;border-radius:7px;text-decoration:none;font-weight:600;">번역 시작하기</a>`
+                        + `<p style="margin-top:1rem;"><a href="${transEsc(origUrl)}" style="color:#3b82f6;">← 원문 보기</a></p>`
+                        + `</div>`;
+                    return res.renderSkin(undefined, {
+                        ...defaultData,
+                        contentHtml: noTransHtml
+                    });
+                }
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
         let revs = [];
         if(dbDocument) revs = await History.find({
             document: dbDocument.uuid
@@ -420,6 +506,22 @@ app.get('/w{/*document}', middleware.parseDocumentName, async (req, res) => {
         });
         return html;
     }));
+
+    // ── 다른 언어 번역 목록 바 ────────────────────────────────────────────────
+    const availableTranslations = await DocumentTranslation.find({ document: dbDocument.uuid }).select('lang -_id').lean();
+    if (availableTranslations.length > 0) {
+        const encodedTitle = globalUtils.encodeSpecialChars(fullTitle);
+        const langLinks = availableTranslations.map(t => {
+            const lName = transLangName(t.lang);
+            return `<a href="/w/${encodedTitle}/${t.lang}" style="color:#3b82f6;text-decoration:none;">${transEsc(lName)}</a>`;
+        }).join(' &middot; ');
+        const langBar = `<div style="margin-top:1.5rem;padding:.6rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;font-size:.82rem;display:flex;align-items:center;gap:.6rem;">`
+            + `<span style="color:#6b7280;white-space:nowrap;">🌐 다른 언어:</span>`
+            + `<span style="flex:1;">${langLinks}</span>`
+            + `</div>`;
+        contentHtml = contentHtml + langBar;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     res.renderSkin(undefined, {
         ...defaultData,
