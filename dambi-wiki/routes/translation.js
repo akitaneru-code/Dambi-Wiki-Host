@@ -189,6 +189,15 @@ app.get('/translate-edit{/*document}', async (req, res) => {
     });
 });
 
+// GET /translate-redirect — 폼에서 언어 선택 후 편집 페이지로 리다이렉트
+app.get('/translate-redirect', (req, res) => {
+    const doc = (req.query.doc || '').trim();
+    const lang = (req.query.lang || '').trim();
+    if (!doc || !LANG_CODE_RE.test(lang))
+        return res.error('잘못된 요청입니다.', 400);
+    return res.redirect(`/translate-edit/${doc}/${encodeURIComponent(lang)}`);
+});
+
 // POST /translate-edit{/*document} — 번역 저장
 app.post('/translate-edit{/*document}', async (req, res) => {
     const { lang, docPath } = parseLangFromPath(req.params);

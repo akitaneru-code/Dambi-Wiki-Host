@@ -507,18 +507,51 @@ app.get('/w{/*document}', middleware.parseDocumentName, async (req, res) => {
         return html;
     }));
 
-    // ── 다른 언어 번역 목록 바 ────────────────────────────────────────────────
+    // ── 다국어 번역 패널 (항상 표시) ─────────────────────────────────────────
     const availableTranslations = await DocumentTranslation.find({ document: dbDocument.uuid }).select('lang -_id').lean();
-    if (availableTranslations.length > 0) {
+    {
         const encodedTitle = globalUtils.encodeSpecialChars(fullTitle);
+
+        // 기존 번역 링크
         const langLinks = availableTranslations.map(t => {
             const lName = transLangName(t.lang);
-            return `<a href="/w/${encodedTitle}/${t.lang}" style="color:#3b82f6;text-decoration:none;">${transEsc(lName)}</a>`;
-        }).join(' &middot; ');
-        const langBar = `<div style="margin-top:1.5rem;padding:.6rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;font-size:.82rem;display:flex;align-items:center;gap:.6rem;">`
-            + `<span style="color:#6b7280;white-space:nowrap;">🌐 다른 언어:</span>`
-            + `<span style="flex:1;">${langLinks}</span>`
+            return `<a href="/w/${encodedTitle}/${t.lang}" `
+                + `style="display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;`
+                + `background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;`
+                + `color:#3b82f6;text-decoration:none;font-size:.8rem;white-space:nowrap;">`
+                + `${transEsc(lName)}</a>`;
+        }).join(' ');
+
+        // 언어 옵션 목록 (이미 번역된 언어 제외)
+        const existingLangs = new Set(availableTranslations.map(t => t.lang));
+        const langOptions = Object.entries(TRANS_LANG_NAMES)
+            .filter(([code]) => code !== 'ko')
+            .map(([code, name]) => {
+                const sel = existingLangs.has(code) ? ' selected' : '';
+                return `<option value="${transEsc(code)}"${sel}>${transEsc(name)} (${transEsc(code)})</option>`;
+            }).join('');
+
+        // JS 불필요 — 폼으로 /translate-redirect?doc=...&lang=... 로 이동
+        const addBtn = req.user
+            ? `<form action="/translate-redirect" method="GET" style="display:inline-flex;align-items:center;gap:.35rem;">`
+              + `<input type="hidden" name="doc" value="${transEsc(encodedTitle)}">`
+              + `<select name="lang" style="padding:.2rem .4rem;border:1px solid #d1d5db;border-radius:5px;font-size:.8rem;">${langOptions}</select>`
+              + `<button type="submit" style="padding:.25rem .7rem;background:#3b82f6;color:#fff;border:none;border-radius:5px;font-size:.8rem;cursor:pointer;font-weight:600;">번역하기</button>`
+              + `</form>`
+            : `<a href="/member/login?redirect=${encodeURIComponent('/translate-edit/'+encodedTitle+'/en')}" `
+              + `style="font-size:.8rem;color:#6b7280;text-decoration:none;">번역하기 (로그인 필요)</a>`;
+
+        const langSection = availableTranslations.length > 0
+            ? `<span style="color:#6b7280;font-size:.8rem;white-space:nowrap;">다른 언어:</span> ${langLinks}`
+            : `<span style="color:#9ca3af;font-size:.8rem;">아직 번역이 없습니다.</span>`;
+
+        const langBar = `<div style="margin-top:1.5rem;padding:.65rem 1rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;">`
+            + `<span style="font-size:.85rem;margin-right:.25rem;">🌐</span>`
+            + langSection
+            + `<span style="flex:1;min-width:.5rem;"></span>`
+            + addBtn
             + `</div>`;
+
         contentHtml = contentHtml + langBar;
     }
     // ─────────────────────────────────────────────────────────────────────────
