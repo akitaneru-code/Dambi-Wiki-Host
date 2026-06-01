@@ -151,6 +151,11 @@ if(process.env.MEILISEARCH_HOST)  {
         apiKey: process.env.MEILISEARCH_KEY
     });
     global.documentIndex = MeiliSearch.index(process.env.MEILISEARCH_INDEX);
+    // 서버 시작 시 인덱스 설정(filterable 등) 자동 적용
+    documentIndex.updateSettings({
+        searchableAttributes: ['choseong', 'title', 'content', 'raw'],
+        filterableAttributes: ['namespace', 'title', 'anyoneReadable']
+    }).catch(err => console.warn('MeiliSearch settings update failed:', err.message));
 }
 
 global.resetSearchIndex = async () => {
